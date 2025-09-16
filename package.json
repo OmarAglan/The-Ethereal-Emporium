@@ -1,14 +1,20 @@
 {
+  "name": "the-ethereal-emporium",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Ethereal Emporium — a Three.js 3D art gallery.",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "postprocessing": "^6.35.4",
-    "three": "^0.164.1"
+    "postprocessing": "^6.37.8",
+    "three": "0.180.0"
   },
   "devDependencies": {
-    "vite": "^5.2.11"
-  }
+    "vite": "7.1.5"
+  },
+  "license": "MIT"
 }
