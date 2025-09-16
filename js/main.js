@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 function isWebGLAvailable() {
     try {
@@ -48,19 +49,45 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
+
+// PBR-friendly neutral environment
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+scene.environment = pmremGenerator.fromScene(new RoomEnvironment(renderer), 0.04).texture;
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.target.set(0, 1, 0);
+controls.minDistance = 2.0;
+controls.maxDistance = 25.0;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+// WASD movement (doc pattern: combine with OrbitControls)
+const movement = { forward: false, backward: false, left: false, right: false };
+const moveSpeed = 3.0; // meters per second
+function onKey(e, down) {
+    switch (e.code) {
+        case 'KeyW': movement.forward = down; break;
+        case 'KeyS': movement.backward = down; break;
+        case 'KeyA': movement.left = down; break;
+        case 'KeyD': movement.right = down; break;
+    }
+}
+window.addEventListener('keydown', (e) => onKey(e, true));
+window.addEventListener('keyup', (e) => onKey(e, false));
 
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.25);
 scene.add(ambientLight);
 
-const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.15);
 keyLight.position.set(5, 10, 5);
 keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(1024, 1024);
+keyLight.shadow.camera.near = 1;
+keyLight.shadow.camera.far = 50;
 scene.add(keyLight);
 
 const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
@@ -69,7 +96,7 @@ scene.add(fillLight);
 
 // Floor
 const floorGeometry = new THREE.PlaneGeometry(40, 40);
-const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.0 });
+const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95, metalness: 0.0 });
 const floor = new THREE.Mesh(floorGeometry, floorMaterial);
 floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
@@ -143,21 +170,43 @@ function onResize() {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
     renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 }
 window.addEventListener('resize', onResize);
 
-function animate() {
-    requestAnimationFrame(animate);
+let lastTime = 0;
+function animate(timeMs) {
+    const t = timeMs * 0.001;
+    const dt = Math.min((timeMs - lastTime) / 1000, 0.05);
+    lastTime = timeMs;
+
     // idle motion for sculptures
-    const t = performance.now() * 0.001;
     sculpture1.rotation.y = t * 0.4;
     sculpture2.rotation.y = -t * 0.5;
+
+    // WASD movement in camera space, constrained by controls target
+    if (movement.forward || movement.backward || movement.left || movement.right) {
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir); // forward
+        dir.y = 0;
+        dir.normalize();
+        const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
+        const velocity = moveSpeed * dt;
+        const delta = new THREE.Vector3();
+        if (movement.forward) delta.addScaledVector(dir, velocity);
+        if (movement.backward) delta.addScaledVector(dir, -velocity);
+        if (movement.right) delta.addScaledVector(right, velocity);
+        if (movement.left) delta.addScaledVector(right, -velocity);
+        camera.position.add(delta);
+        controls.target.add(delta);
+    }
+
     controls.update();
     renderer.render(scene, camera);
 }
 
 if (isWebGLAvailable()) {
-    animate();
+    renderer.setAnimationLoop(animate);
 } else {
     const warning = getWebGLErrorMessage();
     document.body.appendChild(warning);
