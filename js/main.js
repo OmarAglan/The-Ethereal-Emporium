@@ -1,6 +1,35 @@
 import * as THREE from 'three';
-import WebGL from 'three/addons/capabilities/WebGL.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function isWebGLAvailable() {
+    try {
+        const canvas = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && (
+            canvas.getContext('webgl') ||
+            canvas.getContext('experimental-webgl') ||
+            canvas.getContext('webgl2')
+        ));
+    } catch (e) {
+        return false;
+    }
+}
+
+function getWebGLErrorMessage() {
+    const message = document.createElement('div');
+    message.style.position = 'absolute';
+    message.style.top = '50%';
+    message.style.left = '50%';
+    message.style.transform = 'translate(-50%, -50%)';
+    message.style.background = 'rgba(0,0,0,0.8)';
+    message.style.color = '#fff';
+    message.style.padding = '16px 20px';
+    message.style.fontFamily = 'sans-serif';
+    message.style.borderRadius = '8px';
+    message.style.maxWidth = '420px';
+    message.style.textAlign = 'center';
+    message.textContent = 'WebGL not supported by your browser or device.';
+    return message;
+}
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a0a);
@@ -127,9 +156,9 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-if (WebGL.isWebGLAvailable()) {
+if (isWebGLAvailable()) {
     animate();
 } else {
-    const warning = WebGL.getWebGLErrorMessage();
+    const warning = getWebGLErrorMessage();
     document.body.appendChild(warning);
 }
