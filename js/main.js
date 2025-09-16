@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 function isWebGLAvailable() {
     try {
@@ -34,6 +35,8 @@ function getWebGLErrorMessage() {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0a0a0a);
+const ROOM_SIZE = 40;
+const ROOM_HEIGHT = 4.5;
 
 const camera = new THREE.PerspectiveCamera(
     60,
@@ -55,7 +58,9 @@ document.body.appendChild(renderer.domElement);
 
 // PBR-friendly neutral environment
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
-scene.environment = pmremGenerator.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+const envRT = pmremGenerator.fromScene(new RoomEnvironment(renderer), 0.04);
+scene.environment = envRT.texture;
+pmremGenerator.dispose();
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -102,6 +107,15 @@ floor.rotation.x = -Math.PI / 2;
 floor.receiveShadow = true;
 scene.add(floor);
 
+// Room (interior faces)
+const room = new THREE.Mesh(
+    new THREE.BoxGeometry(ROOM_SIZE, ROOM_HEIGHT, ROOM_SIZE),
+    new THREE.MeshStandardMaterial({ color: 0x121212, roughness: 0.95, metalness: 0.0, side: THREE.BackSide })
+);
+room.position.y = ROOM_HEIGHT / 2;
+room.receiveShadow = true;
+scene.add(room);
+
 // Sample "artworks"
 function makePedestal(x, z) {
     const pedestal = new THREE.Mesh(
@@ -146,6 +160,7 @@ function makePainting(texture) {
 const textureLoader = new THREE.TextureLoader();
 const checkerTex = textureLoader.load('https://threejs.org/examples/textures/uv_grid_opengl.jpg');
 checkerTex.colorSpace = THREE.SRGBColorSpace;
+checkerTex.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
 // Arrange items
 const pedestal1 = makePedestal(-2.5, -1.5);
@@ -159,9 +174,40 @@ sculpture2.scale.set(0.8, 0.8, 0.8);
 pedestal2.add(sculpture2);
 scene.add(pedestal2);
 
+const pedestal3 = makePedestal(0.0, 2.2);
+scene.add(pedestal3);
+
+// GLTF sculpture
+const gltfLoader = new GLTFLoader();
+gltfLoader.load(
+    'https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf',
+    (gltf) => {
+        const model = gltf.scene;
+        model.traverse((obj) => {
+            if (obj.isMesh) {
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+                if (obj.material && obj.material.map) {
+                    obj.material.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                }
+            }
+        });
+        model.scale.set(1.8, 1.8, 1.8);
+        model.position.y = 1.1;
+        pedestal3.add(model);
+    },
+    undefined,
+    (err) => { console.error('GLTF load error', err); }
+);
+
 const painting1 = makePainting(checkerTex);
-painting1.position.set(0, 1.6, -3.2);
+painting1.position.set(0, 1.6, -ROOM_SIZE / 2 + 0.05);
 scene.add(painting1);
+
+const painting2 = makePainting(checkerTex);
+painting2.position.set(ROOM_SIZE / 2 - 0.05, 1.6, 0);
+painting2.rotation.y = -Math.PI / 2;
+scene.add(painting2);
 
 // Resize handling
 function onResize() {
